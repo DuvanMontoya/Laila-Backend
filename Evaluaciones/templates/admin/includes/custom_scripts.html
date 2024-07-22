@@ -1,0 +1,15 @@
+{% block custom_scripts %}
+<script src="{% static 'django_ckeditor_5/js/ckeditor.js' %}"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (document.querySelector('#id_imagen_svg')) {
+            ClassicEditor
+                .create(document.querySelector('#id_imagen_svg'))
+                .catch(error => {
+                    console.error(error);
+                });
+        }
+    });
+</script>
+{% endblock %}
