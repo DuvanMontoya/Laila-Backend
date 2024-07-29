@@ -8,8 +8,6 @@ from django.conf import settings
 from Usuarios.models import Perfil
 
 
-
-
 class Universidad(models.Model):
     nombre = models.CharField(max_length=255)
     descripcion = models.TextField(blank=True)

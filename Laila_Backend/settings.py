@@ -1,17 +1,19 @@
 from pathlib import Path
-import os
-import sys
 from datetime import timedelta
+from django.core.management.utils import get_random_secret_key
 
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = 'your_very_long_and_very_random_secret_key_here'
 
-SECRET_KEY = 'django-insecure-pz1b6c!9qwas20++blaeqilayu@6o8fg$sly=^g9(n)zt&i_x5'
-
+# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['http://localhost:4173','localhost']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'http://localhost:5173']
 
+# Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -19,6 +21,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Third-party apps
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'drf_yasg',
+    'corsheaders',
+    'django_ckeditor_5',
+    'debug_toolbar',
+    # Local apps
     'Articulos',
     'Autenticacion',
     'Cursos',
@@ -28,131 +38,21 @@ INSTALLED_APPS = [
     'Matriculas',
     'Tareas',
     'Usuarios',
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'drf_yasg',
-    'corsheaders',
-    'django_ckeditor_5',
+    'Dashboard',
 ]
 
-
-
-
-CKEDITOR_5_CONFIGS = {
-    'default': {
-        'language': 'es',
-        'toolbar': {
-            'items': [
-                'heading', '|', 'fontSize', 'fontFamily', '|',
-                'fontColor', 'fontBackgroundColor', '|', 'bold', 'italic',
-                'underline', 'strikethrough', 'subscript', 'superscript', 'code', '|',
-                'alignment', '|', 'bulletedList', 'numberedList', '|', 'outdent',
-                'indent', 'todoList', '|', 'link', 'blockQuote', 'insertTable',
-                'mediaEmbed', 'codeBlock', 'htmlEmbed', '|', 'specialCharacters',
-                'horizontalLine', 'pageBreak', '|', 'textPartLanguage', '|',
-                'imageUpload', 'imageInsert', '|', 'findAndReplace', 'selectAll',
-                'undo', 'redo', '|', 'latex'
-            ],
-            'shouldNotGroupWhenFull': True
-        },
-        'image': {
-            'toolbar': [
-                'imageTextAlternative', 'toggleImageCaption', 'imageStyle:inline',
-                'imageStyle:block', 'imageStyle:side', 'linkImage'
-            ],
-            'upload': {
-                'types': ['png', 'jpeg', 'jpg', 'gif', 'svg', 'webp', 'bmp', 'tiff', 'ico', 'heic', 'heif']
-            }
-        },
-        'table': {
-            'contentToolbar': [
-                'tableColumn', 'tableRow', 'mergeTableCells', 'tableCellProperties',
-                'tableProperties'
-            ]
-        },
-        'htmlEmbed': {
-            'showPreviews': True,
-            'sanitizeHtml': 'inputHtml => { const outputHtml = DOMPurify.sanitize(inputHtml, {ALLOWED_TAGS: ["a", "span", "div", "br", "img", "h1", "h2", "p", "table", "tr", "td", "th", "tbody", "thead", "tfoot", "ul", "ol", "li"], ADD_ATTR: ["style", "class", "id", "name", "src"]}); return { html: outputHtml, hasChanged: inputHtml !== outputHtml }; }'
-        },
-        'latex': {
-            'toolbar': [
-                'insertLatex'
-            ]
-        },
-        'link': {
-            'decorators': {
-                'openInNewTab': {
-                    'mode': 'manual',
-                    'label': 'Open in a new tab',
-                    'defaultValue': True,
-                    'attributes': {
-                        'target': '_blank',
-                        'rel': 'noopener noreferrer'
-                    }
-                },
-                'downloadable': {
-                    'mode': 'manual',
-                    'label': 'Downloadable',
-                    'attributes': {
-                        'download': 'file'
-                    }
-                }
-            },
-            'addTargetToExternalLinks': True,
-            'defaultProtocol': 'https://'
-        },
-        'removePlugins': [
-            'CKBox', 'CKFinder', 'EasyImage', 'RealTimeCollaborativeComments',
-            'RealTimeCollaborativeTrackChanges', 'RealTimeCollaborativeRevisionHistory',
-            'PresenceList', 'Comments', 'TrackChanges', 'TrackChangesData',
-            'RevisionHistory', 'Pagination', 'WProofreader', 'MathType'
-        ]
-    }
-}
-
-
-
-CKEDITOR_5_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
-CKEDITOR_5_UPLOAD_PATH = "uploads/"
-
-
-
-
-
-# Configuración para subida de imágenes
-# CKEDITOR_5_FILE_STORAGE = "django.core.files.storage.default_storage"
-CKEDITOR_5_UPLOAD_PATH = "uploads/"
-CKEDITOR_5_CONFIGS['default']['simpleUpload'] = {
-    "uploadUrl": "/ckeditor5/image_upload/",
-}
-
-# Configuración para MathJax
-CKEDITOR_5_MATH_JAX_CONFIG = {
-    'tex': {'inlineMath': [['$', '$'], ['\\(', '\\)']]},
-    'svg': {'fontCache': 'global'}
-}
-CKEDITOR_5_MATH_JAX_URL = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'
-
-# Configuración de medios
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # For static files in production
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
-
-CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-]
-CORS_ALLOW_CREDENTIALS = True
 
 ROOT_URLCONF = 'Laila_Backend.urls'
 
@@ -174,6 +74,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Laila_Backend.wsgi.application'
 
+# Database
+# https://docs.djangoproject.com/en/3.2/ref/settings/#databases
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -181,50 +84,35 @@ DATABASES = {
     }
 }
 
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'laila',  # Nombre de la base de datos que hemos creado
-#         'USER': 'montoyaduvan1',  # Nombre del usuario que hemos creado
-#         'PASSWORD': 'Gaussiano1008.',  # Contraseña del usuario que hemos creado
-#         'HOST': 'localhost',  # Asumiendo que PostgreSQL está corriendo en el mismo servidor
-#         'PORT': '',  # Puerto por defecto para PostgreSQL
-#     }
-# }
-
-
+# Password validation
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
 
+# Internationalization
 LANGUAGE_CODE = 'es'
-TIME_ZONE = 'America/Bogota'  
+TIME_ZONE = 'America/Bogota'
 USE_I18N = True
+USE_L10N = True
 USE_TZ = True
 
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
-# STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Media files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-]
-
+# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Rest Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -232,11 +120,72 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.openapi.AutoSchema',
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ),
+    'DEFAULT_PARSER_CLASSES': (
+        'rest_framework.parsers.JSONParser',
+    ),
 }
 
-LOG_DIR = BASE_DIR / 'logs'
-os.makedirs(LOG_DIR, exist_ok=True)
+# Simple JWT
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': False,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+}
 
+# Swagger settings
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        }
+    },
+    'USE_SESSION_AUTH': False,
+    'JSON_EDITOR': True,
+    'REFETCH_SCHEMA_ON_LOGOUT': True,
+}
+
+# CORS settings
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173'
+]
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173'
+]
+
+# Security settings
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Logging configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -247,57 +196,48 @@ LOGGING = {
         },
     },
     'handlers': {
+        'file': {
+            'level': 'WARNING',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'laila.log',
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
         'console': {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
-        'file': {
-            'level': 'WARNING',
-            'class': 'logging.FileHandler',
-            'filename': LOG_DIR / 'laila.log',
-            'formatter': 'verbose',
-        },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['file', 'console'],
             'level': 'INFO',
             'propagate': True,
         },
     },
 }
 
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': False,
-
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUDIENCE': None,
-    'ISSUER': None,
-    'JWK_URL': None,
-    'LEEWAY': 0,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-    'JTI_CLAIM': 'jti',
-    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
-    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
-    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+# Cache configuration
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
 }
 
-CACHE_TIMEOUT = 3600  # Tiempo de expiración de la caché en segundos (1 hora)
+# Email configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'your_email@gmail.com'
+EMAIL_HOST_PASSWORD = 'your_email_password_or_app_password'
 
-CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']
-
-
-CORS_ALLOW_CREDENTIALS = True
+# Debug Toolbar settings
+if DEBUG:
+    INTERNAL_IPS = ['127.0.0.1']
+    DEBUG_TOOLBAR_CONFIG = {
+        'SHOW_TOOLBAR_CALLBACK': lambda request: DEBUG,
+    }

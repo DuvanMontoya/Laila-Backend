@@ -1,4 +1,3 @@
-# myproject/urls.py
 from django.urls import path, include
 from django.contrib import admin
 from rest_framework.routers import DefaultRouter
@@ -8,12 +7,9 @@ from rest_framework import permissions
 from django.conf import settings
 from django.conf.urls.static import static
 
-
-
-
-
-
-
+# Agrega la importación de debug_toolbar dentro del bloque de configuración de DEBUG
+if settings.DEBUG:
+    import debug_toolbar
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -28,7 +24,6 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('Autenticacion.urls')),
@@ -40,12 +35,13 @@ urlpatterns = [
     path('', include('Evaluaciones.urls')),
     path('', include('Tareas.urls')),
     path('', include('Latex_Html.urls')),
+    path('', include('Dashboard.urls')),
     path('api-auth/', include('rest_framework.urls')),
-
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
 
 if settings.DEBUG:
+    urlpatterns += [path('__debug__/', include(debug_toolbar.urls))]
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

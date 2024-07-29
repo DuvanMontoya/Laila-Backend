@@ -17,7 +17,8 @@ class Leccion(models.Model):
     nombre = models.CharField(max_length=255)
     slug = models.SlugField(unique=True, help_text=_("Versión amigable del título para URL."))
     estado = models.CharField(max_length=10, choices=EstadoChoices.choices, default=EstadoChoices.BORRADOR)
-    tiempo_estimado = models.PositiveIntegerField(help_text=_("Tiempo estimado en minutos"))
+    # tiempo_estimado = models.PositiveIntegerField(help_text=_("Tiempo estimado en minutos"), default=0)
+    tiempo_estimado = models.PositiveIntegerField(help_text="Tiempo estimado en minutos", default=0)
     tiene_material = models.BooleanField(default=False)
     es_demo = models.BooleanField(default=False)
     tipo_leccion = models.CharField(max_length=9, choices=[('Video', _('Video')), ('Texto', _('Texto')), ('Seminario', _('Seminario'))], default='Video')
@@ -27,6 +28,10 @@ class Leccion(models.Model):
     prerrequisitos = models.ManyToManyField('self', symmetrical=False, related_name='lecciones_siguientes', blank=True)
     # tema = models.ForeignKey('Tema', on_delete=models.CASCADE, related_name='lecciones')
     tema = models.ForeignKey('Cursos.Tema', on_delete=models.CASCADE, related_name='lecciones')
+    completada_por = models.ManyToManyField(User, related_name='lecciones_completadas', blank=True)
+
+
+
 
     calificacion = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Calificación de la lección del 1 al 10")
     # evaluacion_asociada = models.OneToOneField('Evaluaciones.Evaluacion', on_delete=models.SET_NULL, null=True, blank=True, related_name='leccion_evaluacion')
@@ -66,6 +71,12 @@ class Leccion(models.Model):
     def agregar_feedback(self, usuario_id, comentario, calificacion):
         self.feedbacks.append({'usuario_id': usuario_id, 'comentario': comentario, 'calificacion': calificacion, 'timestamp': datetime.now()})
         self.save()
+
+    # def esta_completada_por(self, usuario):
+    #     return LeccionCompletada.objects.filter(usuario=usuario, leccion=self).exists()
+    
+    def esta_completada_por(self, usuario):
+        return self.completada_por.filter(id=usuario.id).exists()
 
     def __str__(self):
         return self.titulo
@@ -108,4 +119,7 @@ class LeccionCompletada(models.Model):
 
     class Meta:
         unique_together = ('usuario', 'leccion')
+
+    def __str__(self):
+        return f"{self.usuario.username} completó {self.leccion.titulo} el {self.fecha_completado}"
 

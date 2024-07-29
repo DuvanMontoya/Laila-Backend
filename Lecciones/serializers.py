@@ -16,10 +16,24 @@ class LeccionSerializer(serializers.ModelSerializer):
     evaluacion_asociada = serializers.PrimaryKeyRelatedField(queryset=Evaluacion.objects.all(), allow_null=True)
     completada_por = UserSerializer(many=True, read_only=True)
     tareas = serializers.PrimaryKeyRelatedField(many=True, queryset=Tarea.objects.all())
+    esta_completada = serializers.SerializerMethodField()
+    tiempo_estimado_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Leccion
         fields = '__all__'
+
+    def get_esta_completada(self, obj):
+        user = self.context['request'].user
+        return obj.esta_completada_por(user)
+    
+    def get_tiempo_estimado_display(self, obj):
+        return f"{obj.tiempo_estimado} min"
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['tiempo_estimado_display'] = self.get_tiempo_estimado_display(instance)
+        return ret
 
 
 
@@ -29,10 +43,15 @@ class LeccionDetallesSerializer(serializers.ModelSerializer):
     evaluacion_asociada = EvaluacionSerializer()
     completada_por = UserSerializer(many=True)
     tareas = TareaSerializer(many=True)
+    esta_completada = serializers.SerializerMethodField()
 
     class Meta:
         model = Leccion
         fields = '__all__'
+
+    def get_esta_completada(self, obj):
+        user = self.context['request'].user
+        return obj.esta_completada_por(user)
 
 
 

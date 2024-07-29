@@ -1,23 +1,42 @@
 from rest_framework import serializers
-from .models import Evaluacion, Pregunta, Opcion, RespuestaPregunta, IntentoEvaluacion, ResultadoEvaluacion, Tag
+from .models import Evaluacion, Pregunta, Opcion, RespuestaPregunta, IntentoEvaluacion, ResultadoEvaluacion, Tag, Competencia, ContenidoMatematico, EstadisticasEvaluacion
 from django.contrib.auth.models import User
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name']
 
+class CompetenciaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Competencia
+        fields = '__all__'
+
+class ContenidoMatematicoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContenidoMatematico
+        fields = '__all__'
+
 class OpcionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Opcion
-        fields = ['id', 'texto_opcion', 'es_correcta']
+        fields = ['id', 'texto_opcion', 'es_correcta', 'puntos']
+
+
+
+
+
 
 class PreguntaSerializer(serializers.ModelSerializer):
     opciones = OpcionSerializer(many=True, read_only=True)
+    competencia = CompetenciaSerializer(read_only=True)
+    contenido_matematico = ContenidoMatematicoSerializer(read_only=True)
+    # imagen_svg = serializers.SerializerMethodField()
 
     class Meta:
         model = Pregunta
-        fields = ['id', 'texto_pregunta', 'tipo_pregunta', 'imagen_svg', 'puntos', 'opciones', 'dificultad', 'categoria', 'tiempo_estimado', 'marcar_respuesta']
+        fields = ['id', 'texto_pregunta', 'tipo_pregunta', 'imagen_svg', 'puntos', 'opciones', 'dificultad', 'categoria', 'tiempo_estimado', 'marcar_respuesta', 'competencia', 'contenido_matematico', 'situacion']
 
 class RespuestaPreguntaSerializer(serializers.ModelSerializer):
     pregunta = PreguntaSerializer(read_only=True)
@@ -36,14 +55,23 @@ class RespuestaPreguntaSerializer(serializers.ModelSerializer):
         return next((opcion.id for opcion in obj.pregunta.opciones.all() if opcion.es_correcta), None)
 
 
+
 class IntentoEvaluacionSerializer(serializers.ModelSerializer):
     usuario = UserSerializer(read_only=True)
     respuestas = serializers.SerializerMethodField()
     tiempo_tomado = serializers.SerializerMethodField()
+    porcentaje_puntaje = serializers.FloatField(read_only=True)
+    aprobacion = serializers.BooleanField(read_only=True)
+    preguntas = PreguntaSerializer(many=True, read_only=True, source='evaluacion.preguntas')
+
 
     class Meta:
         model = IntentoEvaluacion
-        fields = ['id', 'usuario', 'evaluacion', 'fecha_inicio', 'fecha_fin', 'respuestas', 'puntaje_obtenido', 'tiempo_tomado']
+        fields = ['id', 'evaluacion', 'usuario', 'fecha_inicio', 'fecha_fin', 'puntaje_obtenido', 
+                  'respuestas', 'completado', 'estado', 'preguntas', 'porcentaje_puntaje', 
+                  'aprobacion', 'tiempo_tomado']
+
+    
 
     def get_tiempo_tomado(self, obj):
         if obj.fecha_inicio and obj.fecha_fin:
@@ -55,9 +83,15 @@ class IntentoEvaluacionSerializer(serializers.ModelSerializer):
         serializer = RespuestaPreguntaSerializer(respuestas, many=True)
         return serializer.data
 
+
+
+
+
+
 class ResultadoEvaluacionSerializer(serializers.ModelSerializer):
     usuario = UserSerializer(read_only=True)
     intentos = IntentoEvaluacionSerializer(many=True, read_only=True)
+    mejor_intento = IntentoEvaluacionSerializer(read_only=True)
 
     class Meta:
         model = ResultadoEvaluacion
@@ -68,12 +102,18 @@ class TagSerializer(serializers.ModelSerializer):
         model = Tag
         fields = '__all__'
 
+class EstadisticasEvaluacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EstadisticasEvaluacion
+        fields = '__all__'
+
 class EvaluacionSerializer(serializers.ModelSerializer):
     intentos_realizados = serializers.SerializerMethodField()
     preguntas = PreguntaSerializer(many=True, read_only=True)
     resultados = ResultadoEvaluacionSerializer(many=True, read_only=True)
     usuarios_permitidos = UserSerializer(many=True, read_only=True)
     puntaje_maximo = serializers.SerializerMethodField()
+    estadisticas = EstadisticasEvaluacionSerializer(read_only=True)
 
     class Meta:
         model = Evaluacion

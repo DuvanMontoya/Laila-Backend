@@ -15,13 +15,13 @@ class PerfilAdmin(admin.ModelAdmin):
             'fields': ('twitter', 'linkedin', 'github', 'website')
         }),
         ('Información Adicional', {
-            'fields': ('universidad', 'fecha_creacion', 'fecha_actualizacion')
+            'fields': ( 'fecha_creacion', 'fecha_actualizacion')
         }),
     )
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
-        return queryset.select_related('usuario', 'universidad')
+        return queryset.select_related('usuario')
 
 # Customizing the admin interface for the Usuarios app
 admin.site.site_header = "Laila Usuarios Admin"

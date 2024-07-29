@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
 from Cursos.models import Curso
-# from Matriculas.models import Inscripcion
+
 
 
 class Perfil(models.Model):
@@ -54,6 +54,9 @@ class Perfil(models.Model):
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
     universidad = models.ForeignKey('Articulos.Universidad', on_delete=models.SET_NULL, null=True, blank=True, related_name="perfiles")
+
+
+
 
     def __str__(self):
         return f'Perfil de {self.usuario.username}'

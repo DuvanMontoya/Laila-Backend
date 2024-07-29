@@ -1,13 +1,5 @@
 from django.urls import path
-from .views import (
-    CategoriaViewSet, CursoViewSet, TemaViewSet, 
-    TemaCompletadoList, CalificarCursoView, 
-    CalcularProgresoCursoView, InscribirCursoView, 
-    InscripcionesUsuarioView, InstructorViewSet, 
-    CursoRecomendacionView, CursoDetallesView, 
-    VerificarInscripcionView, CursoEstadisticasView, 
-    CursoProgresoView
-)
+from .views import *
 
 urlpatterns = [
     # Rutas para los cursos
@@ -24,14 +16,21 @@ urlpatterns = [
     # Rutas para otros modelos
     path('api/usuarios/<int:user_id>/inscripciones/', InscripcionesUsuarioView.as_view(), name='inscripciones-usuario'),
     path('api/temas-completados/', TemaCompletadoList.as_view(), name='tema-completado-list'),
-    # path('api/cursos/<int:pk>/solicitar_inscripcion/', InscripcionesUsuarioView.as_view(), name='solicitar-inscripcion'),
     path('api/cursos/<int:pk>/solicitar_inscripcion/', CursoViewSet.as_view({'post': 'solicitar_inscripcion'}), name='solicitar-inscripcion'),
     
     # Rutas para categorías, temas e instructores (aquí asumiendo que usarás vistas basadas en clases o ViewSets)
     path('api/categorias/', CategoriaViewSet.as_view({'get': 'list'}), name='categoria-list'),
     path('api/categorias/<int:pk>/', CategoriaViewSet.as_view({'get': 'retrieve'}), name='categoria-detail'),
     path('api/temas/', TemaViewSet.as_view({'get': 'list'}), name='tema-list'),
+    path('api/cursos/<int:pk>/temas/', TemaViewSet.as_view({'get': 'list'}), name='tema-list'),
     path('api/temas/<int:pk>/', TemaViewSet.as_view({'get': 'retrieve'}), name='tema-detail'),
     path('api/instructores/', InstructorViewSet.as_view({'get': 'list'}), name='instructor-list'),
     path('api/instructores/<int:pk>/', InstructorViewSet.as_view({'get': 'retrieve'}), name='instructor-detail'),
+
+    path('api/usuarios/<int:user_id>/cursos-matriculados/', CursosMatriculadosView.as_view(), name='cursos-matriculados'),
+    path('api/cursos/<int:pk>/estado_inscripcion/', CursoViewSet.as_view({'get': 'estado_inscripcion'}), name='curso-estado-inscripcion'),
+
+
+
+
 ]

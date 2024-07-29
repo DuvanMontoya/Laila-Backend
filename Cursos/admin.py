@@ -28,6 +28,19 @@ class CursoAdmin(admin.ModelAdmin):
         return obj.profesor.usuario.username
     instructor_name.short_description = 'Instructor'
 
+    def save_model(self, request, obj, form, change):
+        """
+        Override the save_model method to save the Curso instance first before saving related instances.
+        """
+        obj.save()
+        super().save_model(request, obj, form, change)
+
+    def save_related(self, request, form, formsets, change):
+        """
+        Override the save_related method to ensure that related instances are saved after the Curso instance.
+        """
+        super().save_related(request, form, formsets, change)
+
 @admin.register(Tema)
 class TemaAdmin(admin.ModelAdmin):
     list_display = ('titulo', 'curso', 'tiempo_estimado', 'microlearning')

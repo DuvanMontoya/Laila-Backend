@@ -6,7 +6,27 @@ from django.utils.text import slugify
 from django.utils import timezone
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
-from django_ckeditor_5.fields import CKEditor5Field
+from django.db.models import Avg, ExpressionWrapper, F, DurationField
+
+class Competencia(models.Model):
+    nombre = models.CharField(max_length=100)
+    descripcion = models.TextField()
+
+    def __str__(self):
+        return self.nombre
+
+class ContenidoMatematico(models.Model):
+    CATEGORIA_CHOICES = [
+        ('EST', 'Estadística'),
+        ('GEO', 'Geometría'),
+        ('ALG', 'Álgebra y cálculo'),
+    ]
+    categoria = models.CharField(max_length=3, choices=CATEGORIA_CHOICES)
+    nombre = models.CharField(max_length=100)
+    es_generico = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.get_categoria_display()} - {self.nombre}"
 
 class Evaluacion(models.Model):
     class TipoEvaluacionChoices(models.TextChoices):
@@ -15,16 +35,18 @@ class Evaluacion(models.Model):
         CURSO = 'Curso', _('Curso')
         DIAGNOSTICA = 'Diagnóstica', _('Diagnóstica')
         LIBRE = 'Libre', _('Libre')
+        SABER11 = 'Saber 11', _('Saber 11')
 
     titulo = models.CharField(max_length=255)
     tipo = models.CharField(max_length=11, choices=TipoEvaluacionChoices.choices, default=TipoEvaluacionChoices.LIBRE)
     descripcion = models.TextField(blank=True)
     fecha_inicio = models.DateTimeField(blank=True, null=True)
     fecha_fin = models.DateTimeField(blank=True, null=True)
+    fecha_limite = models.DateTimeField(blank=True, null=True)
     intentos_permitidos = models.PositiveIntegerField(default=1)
     ponderacion = models.DecimalField(max_digits=5, decimal_places=2)
     criterios_aprobacion = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    tiempo_limite = models.PositiveIntegerField(blank=True, null=True, help_text=_("Tiempo límite en minutos"))
+    tiempo_limite = models.PositiveIntegerField(null=True, help_text=_("Tiempo límite en minutos"))
     preguntas = models.ManyToManyField('Pregunta', related_name='evaluaciones', blank=True)
     resultados_visibles = models.BooleanField(default=False, help_text=_("Permite mostrar u ocultar los resultados a los estudiantes"))
     leccion_evaluacion = models.ForeignKey('Lecciones.Leccion', on_delete=models.SET_NULL, null=True, blank=True)
@@ -49,6 +71,13 @@ class Evaluacion(models.Model):
             Evaluacion.objects.filter(pk=self.pk).update(puntaje_maximo=puntaje_maximo)
             delattr(self, '_calculating_puntaje')
 
+    def esta_pendiente(self, usuario):
+        return (
+            self.usuarios_permitidos.filter(id=usuario.id).exists() and
+            not self.intento_evaluacion.filter(usuario=usuario, completado=True).exists() and
+            self.fecha_limite > timezone.now()
+        )
+
     def clean(self):
         super().clean()
         if self.fecha_inicio and self.fecha_fin and self.fecha_inicio > self.fecha_fin:
@@ -63,13 +92,6 @@ class Evaluacion(models.Model):
         verbose_name = _("Evaluación")
         verbose_name_plural = _("Evaluaciones")
 
-@receiver(pre_save, sender=Evaluacion)
-def ensure_evaluacion_id(sender, instance, **kwargs):
-    if not instance.pk and not hasattr(instance, '_saving'):
-        setattr(instance, '_saving', True)
-        instance.save()
-        delattr(instance, '_saving')
-
 class Pregunta(models.Model):
     class DificultadChoices(models.TextChoices):
         FACIL = 'Fácil', _('Fácil')
@@ -82,13 +104,19 @@ class Pregunta(models.Model):
         ABIERTA = 'Abierta', _('Abierta')
         VERDADERO_FALSO = 'Verdadero/Falso', _('Verdadero/Falso')
 
-    texto_pregunta = CKEditor5Field(blank=True, config_name='default')
+    class SituacionChoices(models.TextChoices):
+        FAMILIAR = 'Familiar', _('Familiar o personal')
+        LABORAL = 'Laboral', _('Laboral u ocupacional')
+        COMUNITARIO = 'Comunitario', _('Comunitario o social')
+        MATEMATICO = 'Matemático', _('Matemático o científico')
+
+    texto_pregunta = models.TextField(blank=True)
     tipo_pregunta = models.CharField(max_length=15, choices=TipoPreguntaChoices.choices, default=TipoPreguntaChoices.SIMPLE)
     dificultad = models.CharField(max_length=12, choices=DificultadChoices.choices)
     puntos = models.DecimalField(max_digits=5, decimal_places=2)
     tiempo_estimado = models.PositiveIntegerField(null=True, blank=True)
     categoria = models.CharField(max_length=50, blank=True)
-    imagen_svg = CKEditor5Field(blank=True, config_name='default')
+    imagen_svg = models.FileField(upload_to='preguntas/imagenes/', null=True, blank=True)
     marcar_respuesta = models.BooleanField(default=False)
     explicacion_respuesta = models.TextField(blank=True)
     tags = models.ManyToManyField("Tag", related_name='preguntas', blank=True)
@@ -96,6 +124,9 @@ class Pregunta(models.Model):
     fecha_modificacion = models.DateTimeField(auto_now=True)
     activa = models.BooleanField(default=True)
     comentarios = models.TextField(blank=True)
+    competencia = models.ForeignKey(Competencia, on_delete=models.SET_NULL, null=True, related_name='preguntas')
+    contenido_matematico = models.ForeignKey(ContenidoMatematico, on_delete=models.SET_NULL, null=True, related_name='preguntas')
+    situacion = models.CharField(max_length=15, choices=SituacionChoices.choices, default=SituacionChoices.FAMILIAR)
 
     def __str__(self):
         return self.texto_pregunta
@@ -106,6 +137,11 @@ class Pregunta(models.Model):
             if self.tipo_pregunta in [self.TipoPreguntaChoices.SIMPLE, self.TipoPreguntaChoices.MULTIPLE, self.TipoPreguntaChoices.VERDADERO_FALSO]:
                 if not self.opciones.exists():
                     raise ValidationError(_("Debe proporcionar al menos una opción para preguntas de tipo simple, múltiple o verdadero/falso."))
+        if self.imagen_svg:
+            # Validar que el nombre del archivo no contenga caracteres no válidos
+            invalid_chars = '<>:\"/\\|?*'
+            if any(char in invalid_chars for char in self.imagen_svg.name):
+                raise ValidationError("El nombre del archivo contiene caracteres no válidos.")
 
     class Meta:
         verbose_name = _("Pregunta")
@@ -130,6 +166,12 @@ class Opcion(models.Model):
         verbose_name_plural = _("Opciones")
 
 class IntentoEvaluacion(models.Model):
+    ESTADO_CHOICES = (
+        ('iniciado', 'Iniciado'),
+        ('en_curso', 'En Curso'),
+        ('finalizado', 'Finalizado'),
+    )
+    
     evaluacion = models.ForeignKey(Evaluacion, on_delete=models.CASCADE, related_name='intento_evaluacion')
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='intento_evaluacion')
     fecha_inicio = models.DateTimeField(auto_now_add=True)
@@ -139,6 +181,7 @@ class IntentoEvaluacion(models.Model):
     puntaje_obtenido = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     respuestas = models.JSONField(default=dict)
     completado = models.BooleanField(default=False)
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='iniciado')
 
     def __str__(self):
         return f"Intento de {self.usuario} en {self.evaluacion}"
@@ -172,6 +215,9 @@ class IntentoEvaluacion(models.Model):
     class Meta:
         verbose_name = _("Intento de Evaluación")
         verbose_name_plural = _("Intentos de Evaluaciones")
+        indexes = [
+            models.Index(fields=['evaluacion', 'usuario', 'completado']),
+        ]
 
 class RespuestaPregunta(models.Model):
     intento = models.ForeignKey('IntentoEvaluacion', on_delete=models.CASCADE, related_name='respuesta_pregunta')
@@ -189,36 +235,51 @@ class RespuestaPregunta(models.Model):
     def clean(self):
         super().clean()
         if self.pregunta.tipo_pregunta == Pregunta.TipoPreguntaChoices.SIMPLE:
-            opcion_seleccionada = self.respuesta.get('opcion_seleccionada')
-            if opcion_seleccionada:
-                opcion = Opcion.objects.get(id=opcion_seleccionada)
-                self.es_correcta = opcion.es_correcta
-                self.puntos_obtenidos = opcion.puntos if opcion.es_correcta else 0
+            if isinstance(self.respuesta, dict):
+                opcion_seleccionada = self.respuesta.get('opcion_seleccionada')
+                if opcion_seleccionada:
+                    opcion = Opcion.objects.get(id=opcion_seleccionada)
+                    self.es_correcta = opcion.es_correcta
+                    self.puntos_obtenidos = opcion.puntos if opcion.es_correcta else 0
+                else:
+                    raise ValidationError(_("Debe seleccionar una opción para preguntas simples."))
             else:
-                raise ValidationError(_("Debe seleccionar una opción para preguntas simples."))
+                raise ValidationError(_("La respuesta debe ser un diccionario."))
+
         elif self.pregunta.tipo_pregunta == Pregunta.TipoPreguntaChoices.MULTIPLE:
-            opciones_seleccionadas = self.respuesta.get('opciones_seleccionadas', [])
-            if opciones_seleccionadas:
-                opciones = Opcion.objects.filter(id__in=opciones_seleccionadas)
-                self.es_correcta = all(opcion.es_correcta for opcion in opciones)
-                self.puntos_obtenidos = sum(opcion.puntos for opcion in opciones if opcion.es_correcta)
+            if isinstance(self.respuesta, dict):
+                opciones_seleccionadas = self.respuesta.get('opciones_seleccionadas', [])
+                if opciones_seleccionadas:
+                    opciones = Opcion.objects.filter(id__in=opciones_seleccionadas)
+                    self.es_correcta = all(opcion.es_correcta for opcion in opciones)
+                    self.puntos_obtenidos = sum(opcion.puntos for opcion in opciones if opcion.es_correcta)
+                else:
+                    raise ValidationError(_("Debe seleccionar al menos una opción para preguntas de opción múltiple."))
             else:
-                raise ValidationError(_("Debe seleccionar al menos una opción para preguntas de opción múltiple."))
+                raise ValidationError(_("La respuesta debe ser un diccionario."))
+
         elif self.pregunta.tipo_pregunta == Pregunta.TipoPreguntaChoices.VERDADERO_FALSO:
-            respuesta_seleccionada = self.respuesta.get('respuesta_seleccionada')
-            if respuesta_seleccionada is not None:
-                opcion = Opcion.objects.get(pregunta=self.pregunta, es_correcta=respuesta_seleccionada)
-                self.es_correcta = opcion.es_correcta
-                self.puntos_obtenidos = opcion.puntos if opcion.es_correcta else 0
+            if isinstance(self.respuesta, dict):
+                respuesta_seleccionada = self.respuesta.get('respuesta_seleccionada')
+                if respuesta_seleccionada is not None:
+                    opcion = Opcion.objects.get(pregunta=self.pregunta, es_correcta=respuesta_seleccionada)
+                    self.es_correcta = opcion.es_correcta
+                    self.puntos_obtenidos = opcion.puntos if opcion.es_correcta else 0
+                else:
+                    raise ValidationError(_("Debe seleccionar una respuesta para preguntas de verdadero/falso."))
             else:
-                raise ValidationError(_("Debe seleccionar una respuesta para preguntas de verdadero/falso."))
+                raise ValidationError(_("La respuesta debe ser un diccionario."))
+
         elif self.pregunta.tipo_pregunta == Pregunta.TipoPreguntaChoices.ABIERTA:
-            respuesta_texto = self.respuesta.get('respuesta_texto')
-            if respuesta_texto:
-                # Aquí podrías implementar algún tipo de validación o asignación de puntaje para preguntas abiertas
-                pass
+            if isinstance(self.respuesta, dict):
+                respuesta_texto = self.respuesta.get('respuesta_texto')
+                if respuesta_texto:
+                    # Aquí podrías implementar algún tipo de validación o asignación de puntaje para preguntas abiertas
+                    pass
+                else:
+                    raise ValidationError(_("Debe ingresar una respuesta para preguntas abiertas."))
             else:
-                raise ValidationError(_("Debe ingresar una respuesta para preguntas abiertas."))
+                raise ValidationError(_("La respuesta debe ser un diccionario."))
     
     class Meta:
         verbose_name = _("Respuesta a Pregunta")
@@ -245,10 +306,71 @@ class ResultadoEvaluacion(models.Model):
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='resultados')
     puntaje_total = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     fecha_resultado = models.DateTimeField(auto_now_add=True)
+    intentos = models.ManyToManyField(IntentoEvaluacion, related_name='resultado')
+    mejor_intento = models.ForeignKey(IntentoEvaluacion, on_delete=models.SET_NULL, null=True, related_name='mejor_resultado')
 
     def __str__(self):
         return f"Resultado de {self.usuario} en {self.evaluacion}"
 
+    def actualizar_mejor_intento(self):
+        mejor_intento = self.intentos.order_by('-puntaje_obtenido').first()
+        if mejor_intento:
+            self.mejor_intento = mejor_intento
+            self.puntaje_total = mejor_intento.puntaje_obtenido
+            self.save()
+
     class Meta:
         verbose_name = _("Resultado de Evaluación")
         verbose_name_plural = _("Resultados de Evaluaciones")
+
+class EstadisticasEvaluacion(models.Model):
+    evaluacion = models.OneToOneField(Evaluacion, on_delete=models.CASCADE, related_name='estadisticas')
+    numero_intentos = models.PositiveIntegerField(default=0)
+    puntaje_promedio = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    tiempo_promedio = models.DurationField(null=True, blank=True)
+    tasa_aprobacion = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    def actualizar_estadisticas(self):
+        intentos = IntentoEvaluacion.objects.filter(evaluacion=self.evaluacion, completado=True)
+        self.numero_intentos = intentos.count()
+        if self.numero_intentos > 0:
+            self.puntaje_promedio = intentos.aggregate(puntaje_promedio=Avg('puntaje_obtenido'))['puntaje_promedio']
+            tiempo_promedio = intentos.aggregate(
+                tiempo_promedio=Avg(ExpressionWrapper(
+                    F('fecha_fin') - F('fecha_inicio'),
+                    output_field=DurationField()
+                ))
+            )['tiempo_promedio']
+            self.tiempo_promedio = tiempo_promedio
+
+            if self.evaluacion.criterios_aprobacion is not None:
+                aprobados = intentos.filter(puntaje_obtenido__gte=self.evaluacion.criterios_aprobacion).count()
+                self.tasa_aprobacion = (aprobados / self.numero_intentos) * 100
+            else:
+                self.tasa_aprobacion = 0
+        self.save()
+
+    def __str__(self):
+        return f"Estadísticas de {self.evaluacion}"
+
+    class Meta:
+        verbose_name = _("Estadísticas de Evaluación")
+        verbose_name_plural = _("Estadísticas de Evaluaciones")
+
+
+@receiver(pre_save, sender=Evaluacion)
+def ensure_evaluacion_id(sender, instance, **kwargs):
+    if not instance.pk and not hasattr(instance, '_saving'):
+        setattr(instance, '_saving', True)
+        instance.save()
+        delattr(instance, '_saving')
+
+@receiver(models.signals.post_save, sender=IntentoEvaluacion)
+def actualizar_estadisticas_y_resultados(sender, instance, created, **kwargs):
+    if instance.completado:
+        estadisticas, _ = EstadisticasEvaluacion.objects.get_or_create(evaluacion=instance.evaluacion)
+        estadisticas.actualizar_estadisticas()
+        
+        resultado, _ = ResultadoEvaluacion.objects.get_or_create(evaluacion=instance.evaluacion, usuario=instance.usuario)
+        resultado.intentos.add(instance)
+        resultado.actualizar_mejor_intento()

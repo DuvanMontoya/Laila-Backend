@@ -1,11 +1,6 @@
 from django.urls import path, include
 from rest_framework import routers
-from .views import (
-    EvaluacionViewSet, PreguntaViewSet, RespuestaPreguntaViewSet, IntentoEvaluacionViewSet,
-    ResultadoEvaluacionViewSet, TagViewSet, EvaluacionDetail, SubmitEvaluacionView,
-    ResultadosEvaluacionView, EvaluacionList, PreguntaList, iniciar_evaluacion,
-    enviar_evaluacion, obtener_intento, upload_image
-)
+from .views import *
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -16,6 +11,8 @@ router.register(r'respuestas', RespuestaPreguntaViewSet)
 router.register(r'intentos', IntentoEvaluacionViewSet)
 router.register(r'resultados', ResultadoEvaluacionViewSet)
 router.register(r'tags', TagViewSet)
+router.register(r'competencias', CompetenciaViewSet)
+router.register(r'contenidos-matematicos', ContenidoMatematicoViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -28,8 +25,17 @@ urlpatterns = [
     path('api/evaluaciones/<int:evaluacion_id>/enviar/', enviar_evaluacion, name='enviar-evaluacion'),
     path('api/evaluaciones/<int:evaluacion_id>/intento/', obtener_intento, name='obtener-intento'),
     path('upload_image/', upload_image, name='upload_image'),
+    path('api/estadisticas/generales/', estadisticas_generales, name='estadisticas-generales'),
+    path('api/estadisticas/tendencias/', tendencias_rendimiento, name='tendencias-rendimiento'),
+    path('api/perfil/', perfil_usuario, name='perfil-usuario'),
     path("ckeditor5/", include('django_ckeditor_5.urls')),
+    path('api/usuarios/<int:user_id>/evaluaciones-pendientes/', EvaluacionesPendientesView.as_view(), name='evaluaciones-pendientes'),
+    path('api/evaluaciones/<int:evaluacion_id>/iniciar-intento/', iniciar_nuevo_intento, name='iniciar-nuevo-intento'),
+    path('api/intentos/<int:intento_id>/finalizar/', finalizar_intento, name='finalizar-intento'),
+    path('api/intentos/<int:intento_id>/guardar-temporal/', guardar_respuestas_temporales, name='guardar-respuestas-temporales'),
 ]
+
+
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

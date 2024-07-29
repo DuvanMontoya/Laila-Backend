@@ -9,6 +9,10 @@ from .serializers import *
 from .permissions import IsEnrolledInCourse, IsEnrolled
 import logging
 
+from Cursos.models import Curso, Tema
+
+from Cursos.serializers import ProgresoCompletoSerializer
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,67 +20,40 @@ class LeccionesCompletadasView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, curso_id):
-        print(f"Solicitando lecciones completadas para el curso {curso_id} y usuario {request.user.username}")
+        logger.info(f"Solicitando lecciones completadas para el curso {curso_id} y usuario {request.user.username}")
         lecciones_completadas = LeccionCompletada.objects.filter(
             usuario=request.user,
             leccion__tema__curso_id=curso_id
         )
-        print(f"Lecciones completadas encontradas: {lecciones_completadas.count()}")
+        logger.info(f"Lecciones completadas encontradas: {lecciones_completadas.count()}")
         
-        # Obtener todas las lecciones del curso
         todas_lecciones = Leccion.objects.filter(tema__curso_id=curso_id)
         
-        # Crear un diccionario con el estado de completado de cada lección
         lecciones_estado = {
-            leccion.id: {
+            str(leccion.id): {
                 'id': leccion.id,
                 'completada': lecciones_completadas.filter(leccion=leccion).exists()
             }
             for leccion in todas_lecciones
         }
         
-        print(f"Estado de lecciones: {lecciones_estado}")
+        logger.info(f"Estado de lecciones: {lecciones_estado}")
         return Response(lecciones_estado)
 
 class LeccionViewSet(viewsets.ModelViewSet):
     queryset = Leccion.objects.all()
     serializer_class = LeccionSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnrolledInCourse]
+    permission_classes = [permissions.IsAuthenticated]
 
     @action(detail=True, methods=['post'])
-    def completar(self, request, pk=None):
-        logger.info("Recibida solicitud para marcar lección como completada")
-        logger.info(f"URL: {request.build_absolute_uri()}")
-        logger.info(f"Método HTTP: {request.method}")
-        logger.info(f"Token de acceso: {request.auth}")
-        logger.info(f"ID de la lección: {pk}")
-        logger.info(f"Usuario actual: {request.user}")
-        logger.info(f"Usuario autenticado: {request.user.is_authenticated}")
-
+    def marcar_completada(self, request, pk=None):
         leccion = self.get_object()
         usuario = request.user
-
-        logger.info(f"Lección: {leccion}")
-        logger.info(f"Curso de la lección: {leccion.tema.curso}")
-
-        logger.info(f"Verificando si el usuario {usuario.id} está inscrito en el curso al que pertenece la lección {leccion.id}")
-        curso = leccion.tema.curso
-        logger.info(f"Usuarios inscritos en el curso {curso.id}: {curso.inscritos.all()}")
-
-        if not curso.esta_inscrito(usuario):
-            logger.info(f"El usuario {usuario.id} no está inscrito en el curso al que pertenece la lección {leccion.id}")
-            return Response({"error": "No estás inscrito en este curso."}, status=status.HTTP_403_FORBIDDEN)
-
-        logger.info(f"Verificando si el usuario {usuario.id} ya ha marcado la lección {leccion.id} como completada")
-        if usuario in leccion.completada_por.all():
-            logger.info(f"El usuario {usuario.id} ya ha marcado la lección {leccion.id} como completada")
-            return Response({"error": "Ya has marcado esta lección como completada anteriormente."}, status=status.HTTP_400_BAD_REQUEST)
-
-        logger.info(f"Marcando la lección {leccion.id} como completada para el usuario {usuario.id}")
-        leccion.completada_por.add(usuario)
-        leccion.save()
-        logger.info(f"Lección {leccion.id} marcada como completada para el usuario {usuario.id}")
-        return Response({"mensaje": "Lección marcada como completada"}, status=status.HTTP_200_OK)
+        leccion_completada, created = LeccionCompletada.objects.get_or_create(usuario=usuario, leccion=leccion)
+        if created:
+            # Actualizar el progreso del curso aquí si es necesario
+            return Response({'status': 'Lección marcada como completada'}, status=status.HTTP_201_CREATED)
+        return Response({'status': 'La lección ya estaba marcada como completada'}, status=status.HTTP_200_OK)
 
    
 
@@ -199,3 +176,25 @@ class MarcarLeccionCompletadaView(APIView):
         leccion = Leccion.objects.get(id=leccion_id)
         LeccionCompletada.objects.get_or_create(usuario=request.user, leccion=leccion)
         return Response({"status": "Lección marcada como completada"})
+    
+
+class ProgresoCompletoPorCursoView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, curso_id, user_id):
+        curso = Curso.objects.get(id=curso_id)
+        temas = Tema.objects.filter(curso=curso)
+        lecciones = Leccion.objects.filter(tema__curso=curso)
+        
+        temas_completados = sum(1 for tema in temas if all(leccion.esta_completada_por(request.user) for leccion in tema.lecciones.all()))
+        lecciones_completadas = sum(1 for leccion in lecciones if leccion.esta_completada_por(request.user))
+        
+        data = {
+            'temas_completados': temas_completados,
+            'total_temas': temas.count(),
+            'lecciones_completadas': lecciones_completadas,
+            'total_lecciones': lecciones.count()
+        }
+        
+        serializer = ProgresoCompletoSerializer(data)
+        return Response(serializer.data)

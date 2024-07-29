@@ -9,12 +9,14 @@ from django.utils import timezone
 class Inscripcion(models.Model):
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='inscripciones_curso')
     perfil = models.ForeignKey('Usuarios.Perfil', on_delete=models.CASCADE, related_name='inscripciones_curso', null=True, blank=True)
-    curso = models.ForeignKey("Cursos.Curso", on_delete=models.CASCADE, related_name='inscripciones')
+    curso = models.ForeignKey("Cursos.Curso", on_delete=models.CASCADE, related_name='inscripciones_matriculas')
     fecha_inscripcion = models.DateTimeField(auto_now_add=True, verbose_name=("Fecha de Inscripción"))
     progreso = models.FloatField(default=0.0, verbose_name=("Progreso"))
     calificacion_final = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     fecha_finalizacion = models.DateTimeField(null=True, blank=True)
     certificado_url = models.URLField(max_length=1024, blank=True)
+    estado = models.CharField(max_length=20)  # Asegúrate de que este campo exista
+
 
     def calcular_progreso(self):
         temas = self.curso.temas.all()
@@ -55,3 +57,11 @@ class SolicitudInscripcion(models.Model):
 
     def __str__(self):
         return f'Solicitud de {self.perfil.username} para {self.curso.titulo}'
+    
+
+
+
+
+
+
+

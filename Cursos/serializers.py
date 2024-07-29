@@ -44,11 +44,8 @@ class TemaSerializer(serializers.ModelSerializer):
     curso = serializers.PrimaryKeyRelatedField(queryset=Curso.objects.all())
     lecciones = serializers.SerializerMethodField()
     contribuyentes = UserSerializer(many=True, read_only=True)
-    progreso = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Tema
-        fields = '__all__'
+    progreso = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    
 
     def get_lecciones(self, obj):
         LeccionSerializer = get_leccion_serializer()
@@ -57,6 +54,12 @@ class TemaSerializer(serializers.ModelSerializer):
     def get_progreso(self, obj):
         usuario = self.context['request'].user if 'request' in self.context else None
         return obj.calcular_progreso(usuario) if usuario and usuario.is_authenticated else 0
+    
+    class Meta:
+        model = Tema
+        # fields = ['id', 'titulo', 'nombre', 'slug', 'contenido', 'orden', 'tiempo_estimado', 'progreso', 'contribuyentes']
+        fields = '__all__'
+        # exclude = ['contribuyentes']
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -83,18 +86,36 @@ class CursoDetailSerializer(serializers.ModelSerializer):
     reseñas = ReseñaSerializer(many=True, read_only=True)
     progreso_usuario = serializers.SerializerMethodField()
     esta_inscrito = serializers.SerializerMethodField()
+    estado_inscripcion = serializers.SerializerMethodField()
+    progreso_promedio = serializers.SerializerMethodField()
 
     class Meta:
         model = Curso
         fields = '__all__'
 
     def get_progreso_usuario(self, obj):
-        usuario = self.context['request'].user if 'request' in self.context else None
+        request = self.context.get('request')
+        usuario = request.user if request else None
+        return obj.calcular_progreso(usuario) if usuario and usuario.is_authenticated else 0
+    
+    def get_progreso_promedio(self, obj):
+        request = self.context.get('request')
+        usuario = request.user if request else None
         return obj.calcular_progreso(usuario) if usuario and usuario.is_authenticated else 0
 
     def get_esta_inscrito(self, obj):
-        usuario = self.context['request'].user if 'request' in self.context else None
-        return obj.esta_inscrito(usuario) if usuario and usuario.is_authenticated else False
+        user = self.context['request'].user
+        if user.is_authenticated:
+            return Matriculas.Inscripcion.objects.filter(usuario=user, curso=obj).exists()
+        return False
+    
+    def get_estado_inscripcion(self, obj):
+        user = self.context['request'].user
+        if user.is_authenticated:
+            inscripcion = Matriculas.Inscripcion.objects.filter(usuario=user, curso=obj).first()
+            if inscripcion:
+                return inscripcion.estado
+        return None
 
 class TemaCompletadoSerializer(serializers.ModelSerializer):
     usuario = UserSerializer(read_only=True)
@@ -141,6 +162,18 @@ class CursoSerializer(serializers.ModelSerializer):
         return obj.calcular_progreso_promedio()
 
 class ProgresoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Progreso
+        fields = '__all__'
+
+
+
+class ProgresoCompletoSerializer(serializers.ModelSerializer):
+    usuario = UserSerializer(read_only=True)
+    curso = CursoSerializer(read_only=True)
+    completado = serializers.BooleanField(read_only=True)
+    fecha_completado = serializers.DateTimeField(read_only=True)
+
     class Meta:
         model = Progreso
         fields = '__all__'

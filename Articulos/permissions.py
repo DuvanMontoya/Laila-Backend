@@ -1,14 +1,17 @@
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+# Articulos/permissions.py
 
-class IsOwnerOrReadOnly(BasePermission):
+from rest_framework import permissions
+
+class IsOwnerOrReadOnly(permissions.BasePermission):
     """
-    Objeto de permiso personalizado que permite solo a los propietarios del objeto editarlos.
+    Custom permission to only allow owners of an object to edit it.
     """
+
     def has_object_permission(self, request, view, obj):
-        # Los métodos de lectura son permitidos para cualquier solicitud,
-        # así que siempre permitiremos GET, HEAD o OPTIONS.
-        if request.method in SAFE_METHODS:
+        # Read permissions are allowed to any request,
+        # so we'll always allow GET, HEAD, or OPTIONS requests.
+        if request.method in permissions.SAFE_METHODS:
             return True
 
-        # Escribir permisos son solo permitidos al propietario del objeto.
-        return obj.owner == request.user
+        # Instance must have an attribute named `owner`.
+        return obj.profesor.usuario == request.user
